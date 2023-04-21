@@ -9,6 +9,7 @@ using System.Text.Json;
 using ImageMagick;
 using System.Threading;
 using CommandLine;
+using System.Linq;
 
 // based on example code from
 // https://www.codeguru.com/azure/analyzing-image-content-programmatically-using-the-microsoft-cognitive-vision-api/#Item1
@@ -19,6 +20,9 @@ namespace ImageContentDetector
 {
     class Options
     {
+        [Option('p', "path", Required = true, HelpText = "Path to a directory to be traversed. All JPGs in that directory (and its child directories) will be analyzed")]
+        public string Path { get; set; }
+
         [Option('t', "timeout", Required = false, HelpText = "Time in milliseconds to wait between making API calls to Microsoft's Computer Vision API. Default is 18000")]
         public string Timeout { get; set; }
 
@@ -28,8 +32,9 @@ namespace ImageContentDetector
         [Option('k', "key", Required = false, HelpText = "API Key used to make call to Microsoft's Computer Vision API. This can also be defined in App.config")]
         public string Key { get; set; }
 
-        [Option('p', "path", Required = true, HelpText = "Path to a directory to be traversed. All JPGs in that directory (and its child directories) will be analyzed")]
-        public string Path { get; set; }
+        [Option('f', "force", Required = false, HelpText = "Force writing of the generated description. By default, the newly generated description will only be written to the image if it doesn't already have a description. Using the -f flag, you force the new description to always overwrite any existing description.")]
+        public bool Force { get; set; }
+
     }
 
     internal class Program
@@ -38,6 +43,7 @@ namespace ImageContentDetector
         private static string Endpoint = null;
         private static string Key = null;
         private static string Path = null;
+        private static bool Force = false;
 
         static async Task Main(string[] args)
         {
@@ -51,7 +57,10 @@ namespace ImageContentDetector
                 return;
             }
 
+            Console.WriteLine("Collecting JPGs...");
             List<string> jpgs = ProcessDirectory(Program.Path);
+            Console.WriteLine(jpgs.Count()+" JPGs found.");
+
             int counter = 0;
             foreach (string imgPath in jpgs)
             {
@@ -136,17 +145,19 @@ namespace ImageContentDetector
         {
             using (MagickImage image = new MagickImage(imgPath))
             {
+                bool changesWereMade = false;
+
                 var iptcProfile = image.GetIptcProfile();
                 if (iptcProfile == null)
                 {
                     iptcProfile = new IptcProfile();
                 }
                 // Update the "ImageDescription" tag with a new value
-                iptcProfile.SetValue(IptcTag.Caption, description);
-                iptcProfile.SetValue(IptcTag.Credit, "Foo");
-
-                string[] keywordsArr = keywords.ToArray();
-                string keywordsstr = string.Join(",", keywordsArr);
+                if(Program.Force || iptcProfile.GetAllValues(IptcTag.Caption).Count() == 0)
+                {
+                    iptcProfile.SetValue(IptcTag.Caption, description);
+                    changesWereMade = true;
+                }
 
                 var existingKeywordsIptc = iptcProfile.GetAllValues(IptcTag.Keyword);
                 var existingKeywords = new List<string>();
@@ -157,14 +168,22 @@ namespace ImageContentDetector
                 foreach (string keyword in keywords)
                 {
                     if (!existingKeywords.Contains(keyword))
+                    {
                         iptcProfile.SetValue(IptcTag.Keyword, keyword);
+                        changesWereMade = true;
+                    }
                 }
 
-                // Save the modified EXIF metadata back to the image
-                image.SetProfile(iptcProfile);
+                if (changesWereMade)
+                {
+                    Console.WriteLine("Changes were made to metadata, storing image file...");
 
-                // Save the modified image
-                image.Write(imgPath);
+                    // Save the modified EXIF metadata back to the image
+                    image.SetProfile(iptcProfile);
+
+                    // Save the modified image
+                    image.Write(imgPath);
+                }
             }
 
         }
@@ -173,15 +192,18 @@ namespace ImageContentDetector
         {
             List<string> jpgs = new List<string>();
 
-            foreach (string file in Directory.GetFiles(dirPath, "*.jpg"))
+            string[] extensions = { ".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".jfi" };
+            foreach (string file in Directory.GetFiles(dirPath, "*.*", SearchOption.AllDirectories))
             {
-                jpgs.Add(file);
+                string ext = System.IO.Path.GetExtension(file).ToLower();
+                if (extensions.Contains(ext))
+                    jpgs.Add(file);
             }
 
-            foreach (string subDir in Directory.GetDirectories(dirPath))
-            {
-                jpgs.AddRange(ProcessDirectory(subDir));
-            }
+            //foreach (string subDir in Directory.GetDirectories(dirPath))
+            //{
+            //    jpgs.AddRange(ProcessDirectory(subDir));
+            //}
             
             return jpgs;
         }
@@ -207,6 +229,7 @@ namespace ImageContentDetector
 
             }
             Program.Path = opts.Path;
+            Program.Force = opts.Force;
         }
 
         private static void HandleParseError(IEnumerable<Error> errs)
