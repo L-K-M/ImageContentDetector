@@ -57,7 +57,7 @@ namespace ImageContentDetector
                 return;
             }
 
-            Console.WriteLine("Collecting JPGs...");
+            Console.WriteLine("Collecting JPGs (this may take a while)...");
             List<string> jpgs = ProcessDirectory(Program.Path);
             Console.WriteLine(jpgs.Count()+" JPGs found.");
 
