@@ -32,6 +32,9 @@ namespace ImageContentDetector
         [Option('k', "key", Required = false, HelpText = "API Key used to make call to Microsoft's Computer Vision API. This can also be defined in App.config")]
         public string Key { get; set; }
 
+        [Option('s', "skip", Required = false, HelpText = "Completely skip images that already have a description set.")]
+        public bool Skip { get; set; }
+
         [Option('f', "force", Required = false, HelpText = "Force writing of the generated description. By default, the newly generated description will only be written to the image if it doesn't already have a description. Using the -f flag, you force the new description to always overwrite any existing description.")]
         public bool Force { get; set; }
 
@@ -44,6 +47,7 @@ namespace ImageContentDetector
         private static string Key = null;
         private static string Path = null;
         private static bool Force = false;
+        private static bool Skip = false;
 
         static async Task Main(string[] args)
         {
@@ -66,6 +70,13 @@ namespace ImageContentDetector
             {
                 counter++;
                 WriteFileInfoToConsole(counter, imgPath);
+
+                if (Program.Skip && HasDescription(imgPath))
+                {
+                    Console.WriteLine("Image already has a description");
+                    continue;
+                }
+                Console.WriteLine("Waiting to make API call...");
                 Thread.Sleep(Program.Timeout);
                 try
                 {
@@ -110,7 +121,6 @@ namespace ImageContentDetector
         {
             Console.WriteLine("---- Image " + counter + " ----");
             Console.WriteLine(imgPath);
-            Console.WriteLine("Waiting to make API call...");
         }
 
         private static string GetDescription(JsonElement jsonObject)
@@ -140,6 +150,16 @@ namespace ImageContentDetector
                 if (!keywords.Contains(tagName)) keywords.Add(tagName);
             }
             return keywords;
+        }
+
+        private static bool HasDescription(string imgPath)
+        {
+            using (MagickImage image = new MagickImage(imgPath))
+            {
+                var iptcProfile = image.GetIptcProfile();
+                if (iptcProfile == null) return false;
+                return (iptcProfile.GetAllValues(IptcTag.Caption).Count() != 0);
+            }
         }
         private static void StoreMetadata(string imgPath, string description, List<String> keywords)
         {
@@ -268,6 +288,7 @@ namespace ImageContentDetector
             }
             Program.Path = opts.Path;
             Program.Force = opts.Force;
+            Program.Skip = opts.Skip;
         }
 
         private static void HandleParseError(IEnumerable<Error> errs)

@@ -28,6 +28,8 @@ Example:
 
   -k, --key         API Key used to make call to Microsoft's Computer Vision API. This can also be defined in App.config
 
+  -s, --skip        Completely skip images that already have a description set
+
   -f, --force       Force writing of the generated description. By default, the newly generated description will only be written to the image if it doesn't already have a description. Using the -f flag, you force the new description to always overwrite any existing description.
 
   --help            Display this help screen.
