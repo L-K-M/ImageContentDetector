@@ -10,6 +10,9 @@ using ImageMagick;
 using System.Threading;
 using CommandLine;
 using System.Linq;
+using static System.Net.Mime.MediaTypeNames;
+using System.Drawing.Imaging;
+using XmpCore.Impl.XPath;
 
 // based on example code from
 // https://www.codeguru.com/azure/analyzing-image-content-programmatically-using-the-microsoft-cognitive-vision-api/#Item1
@@ -23,7 +26,7 @@ namespace ImageContentDetector
         [Option('p', "path", Required = true, HelpText = "Path to a directory to be traversed. All JPGs in that directory (and its child directories) will be analyzed")]
         public string Path { get; set; }
 
-        [Option('t', "timeout", Required = false, HelpText = "Time in milliseconds to wait between making API calls to Microsoft's Computer Vision API. Default is 18000")]
+        [Option('t', "timeout", Required = false, HelpText = "Time in milliseconds to wait between making API calls to Microsoft's Computer Vision API. This can also be defined in App.config. Default is 3000, or 3 seconds")]
         public string Timeout { get; set; }
 
         [Option('e', "endpoint", Required = false, HelpText = "Endpoint to be called to make request (e.g. https://switzerlandwest.api.cognitive.microsoft.com/vision/v1.0/analyze). This can also be defined in App.config")]
@@ -42,12 +45,14 @@ namespace ImageContentDetector
 
     internal class Program
     {
-        private static int Timeout = 18000;
+        private static int Timeout = 3100;
         private static string Endpoint = null;
         private static string Key = null;
         private static string Path = null;
         private static bool Force = false;
         private static bool Skip = false;
+
+        const int MaxFileSize = 2000000; // <3 MB
 
         static async Task Main(string[] args)
         {
@@ -61,9 +66,14 @@ namespace ImageContentDetector
                 return;
             }
 
+            Console.WriteLine("Calling endpoint " + Program.Endpoint);
+
             Console.WriteLine("Collecting JPGs (this may take a while)...");
             List<string> jpgs = ProcessDirectory(Program.Path);
             Console.WriteLine(jpgs.Count()+" JPGs found.");
+
+            var tempDir = System.IO.Path.GetTempPath();
+            var tempFilePath = System.IO.Path.Combine(tempDir, System.IO.Path.GetRandomFileName());
 
             int counter = 0;
             foreach (string imgPath in jpgs)
@@ -84,7 +94,16 @@ namespace ImageContentDetector
                     var httpClient = new HttpClient();
                     var uri = new Uri(Program.Endpoint+parameters+"&subscription-key="+Program.Key);
 
-                    var imageContent = new StreamContent(File.OpenRead(imgPath));
+                    // resize images larger than 3MB
+                    Stream fileStream = File.OpenRead(imgPath);
+                    if (fileStream.Length > MaxFileSize)
+                    {
+                        Console.WriteLine("Image is too big. Resizing image from " + fileStream.Length + "...");
+                        fileStream = ResizeImage(tempFilePath, fileStream);
+                        Console.WriteLine("New size: " + fileStream.Length);
+                    }
+
+                    var imageContent = new StreamContent(fileStream);
                     imageContent.Headers.ContentType = new MediaTypeHeaderValue("image/*");
 
                     var response = await httpClient.PostAsync(uri, imageContent);
@@ -118,6 +137,9 @@ namespace ImageContentDetector
 
                         Console.WriteLine($"Content: {responseContent}");
                     }
+
+                    if(File.Exists(tempFilePath)) File.Delete(tempFilePath);
+
                 }
                 catch (Exception ex)
                 {
@@ -126,6 +148,50 @@ namespace ImageContentDetector
             }
             Console.WriteLine("Finished, evaluated " + counter + " images.");
         }
+            
+        private static Stream ResizeImage(String tempFilePath, Stream fileStream)
+        {
+            System.Drawing.Image image = System.Drawing.Image.FromStream(fileStream);
+            fileStream.Close();
+
+            float scaleFactor = 1200f/Math.Max(image.Width, image.Height);
+            int w = (int)Math.Round(scaleFactor * image.Width);
+            int h = (int)Math.Round(scaleFactor * image.Height);
+
+            ImageCodecInfo jpgEncoder = GetEncoder(ImageFormat.Jpeg);
+            Encoder myEncoder = Encoder.Quality;
+            EncoderParameters myEncoderParameters = new EncoderParameters(1);
+            myEncoderParameters.Param[0] = new EncoderParameter(myEncoder, 60L); // set quality to 50%
+
+            System.Drawing.Bitmap resizedImage = new System.Drawing.Bitmap(image, w, h);
+
+            // Turn the resized image into a file
+            // doing it without a temp file and storing it directly into a MemoryStream didn't work, API responded with
+            // Content: {"code":"InvalidImageFormat","requestId":"f331cfe3-f0b3-4e1f-9355-6aa51621e3e1","message":"Input data is not a valid image."}
+            // MemoryStream stream = new MemoryStream();
+            // resizedImage.Save(stream, jpgEncoder, myEncoderParameters);
+            resizedImage.Save(tempFilePath, jpgEncoder, myEncoderParameters);
+
+            return File.OpenRead(tempFilePath);
+        }
+        private static ImageCodecInfo GetEncoder(ImageFormat format)
+        {
+            // Get all the image codecs
+            ImageCodecInfo[] codecs = ImageCodecInfo.GetImageEncoders();
+
+            // Find the codec with the specified format
+            foreach (ImageCodecInfo codec in codecs)
+            {
+                if (codec.FormatID == format.Guid)
+                {
+                    return codec;
+                }
+            }
+
+            // Return null if no codec is found
+            return null;
+        }
+
 
         private static void WriteFileInfoToConsole(int counter, string imgPath)
         {
@@ -223,7 +289,7 @@ namespace ImageContentDetector
             Console.WriteLine("Searching in " + dirPath);
             List<string> jpgs = new List<string>();
 
-            string[] extensions = { "*.jpg", "*.jpeg", "*.jpe", "*.jif", "*.jfif", "*.jfi" };
+            string[] extensions = { "*.jpg", /*"*.jpeg",*/ "*.jpe", "*.jif", /*"*.jfif",*/ "*.jfi" };
             foreach (string extension in extensions)
             {
                 //, "*.*", SearchOption.TopDirectoryOnly))  // if I iterate in GetFiles directly, I get Illegal characters in path exceptions
@@ -242,7 +308,7 @@ namespace ImageContentDetector
                     Console.WriteLine(dirPath);
                     Console.WriteLine(ex.StackTrace);
                 }
-
+                /*
                 try
                 {
                     //Console.WriteLine("Searching for extension " + extension.ToUpper());
@@ -256,7 +322,7 @@ namespace ImageContentDetector
                     Console.WriteLine(dirPath);
                     Console.WriteLine(ex.StackTrace);
                 }
-
+                */
                 jpgs.AddRange(filePaths);
                 /*
                 foreach (string file in filePaths)
@@ -278,7 +344,13 @@ namespace ImageContentDetector
 
         private static void StoreOpts(Options opts)
         {
-            if(opts.Timeout != null) Program.Timeout = int.Parse(opts.Timeout);
+            if (opts.Timeout != null)
+            {
+                Program.Timeout = int.Parse(opts.Timeout);
+            } else
+            {
+                Program.Timeout = int.Parse(ConfigurationManager.AppSettings["TimeoutBetweenCalls"]);
+            }
             if (opts.Key != null)
             {
                 Program.Key = opts.Key;
