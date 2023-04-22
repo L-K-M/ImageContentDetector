@@ -11,7 +11,7 @@ The purpose of this is to make it easier to find images on systems that don't pr
 You must provide an API key to use the Computer Vision API, which you can get here:  
 [https://azure.microsoft.com/en-us/free/cognitive-services/?api=computer-vision%20%20](https://azure.microsoft.com/en-us/free/cognitive-services/?api=computer-vision%20%20)
 
-A free key allows you to make 5000 requests per day.
+A free key allows you to make 5000 requests per month.
 
 After retrieving the key, edit App.config to set the key and the endpoint (which will be something like https://[location].api.cognitive.microsoft.com/vision/v1.0/analyze), or pass these values to the command line when invoking it.
 

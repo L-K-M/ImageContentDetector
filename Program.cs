@@ -107,6 +107,16 @@ namespace ImageContentDetector
                     else
                     {
                         Console.WriteLine($"Error: {response.StatusCode}");
+                        Console.WriteLine($"Content: {response.ReasonPhrase}");
+
+                        var ms = new MemoryStream();
+                        await response.Content.CopyToAsync(ms);
+                        ms.Seek(0, SeekOrigin.Begin);
+
+                        var sr = new StreamReader(ms);
+                        string responseContent = sr.ReadToEnd();
+
+                        Console.WriteLine($"Content: {responseContent}");
                     }
                 }
                 catch (Exception ex)
