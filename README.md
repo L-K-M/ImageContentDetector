@@ -1,10 +1,10 @@
 # ImageContentDetector
 
-This simple command line tool iterates through a directory, collects all JPEG files, and then uses Microsoft's Computer Vision API to detect what the image contains, and set exif metadata for the description and keywords.
+This simple command line tool iterates through a directory, collects all JPEG files, uses Microsoft's Computer Vision API to detect what the image contains, and set exif metadata for the description and keywords.
 
 The purpose of this is to make it easier to find images on systems that don't provide image content search.
 
-**Note: when using this tool, your images will be sent to Microsoft's Computer Vision API on Azure. If you are not comfortable with this, do not use this too.**
+**Note: when using this tool, your images will be sent to Microsoft's Computer Vision API on Azure. If you are not comfortable with this, do not use this tool.**
 
 ## Computer Vision API
 
