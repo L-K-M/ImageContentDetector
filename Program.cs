@@ -190,20 +190,58 @@ namespace ImageContentDetector
 
         private static List<string> ProcessDirectory(string dirPath)
         {
+            Console.WriteLine("Searching in " + dirPath);
             List<string> jpgs = new List<string>();
 
-            string[] extensions = { ".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".jfi" };
-            foreach (string file in Directory.GetFiles(dirPath, "*.*", SearchOption.AllDirectories))
+            string[] extensions = { "*.jpg", "*.jpeg", "*.jpe", "*.jif", "*.jfif", "*.jfi" };
+            foreach (string extension in extensions)
             {
-                string ext = System.IO.Path.GetExtension(file).ToLower();
-                if (extensions.Contains(ext))
-                    jpgs.Add(file);
+                //, "*.*", SearchOption.TopDirectoryOnly))  // if I iterate in GetFiles directly, I get Illegal characters in path exceptions
+                // this seems to be the most robust approach...
+                List<String> filePaths = new List<String>();
+                try
+                {
+                    //Console.WriteLine("Searching for extension " + extension);
+                    string[] foundFilePaths = Directory.GetFiles(dirPath, extension);
+                    //Console.WriteLine(foundFilePaths.Length + " found");
+                    filePaths.AddRange(foundFilePaths);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                    Console.WriteLine(dirPath);
+                    Console.WriteLine(ex.StackTrace);
+                }
+
+                try
+                {
+                    //Console.WriteLine("Searching for extension " + extension.ToUpper());
+                    string[] foundFilePaths = Directory.GetFiles(dirPath, extension.ToUpper());
+                    //Console.WriteLine(foundFilePaths.Length + " found");
+                    filePaths.AddRange(foundFilePaths);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                    Console.WriteLine(dirPath);
+                    Console.WriteLine(ex.StackTrace);
+                }
+
+                jpgs.AddRange(filePaths);
+                /*
+                foreach (string file in filePaths)
+                {
+                    string ext = System.IO.Path.GetExtension(file).ToLower();
+                    if (extensions.Contains(ext))
+                        jpgs.Add(file);
+                }
+                */
             }
 
-            //foreach (string subDir in Directory.GetDirectories(dirPath))
-            //{
-            //    jpgs.AddRange(ProcessDirectory(subDir));
-            //}
+            foreach (string subDir in Directory.GetDirectories(dirPath))
+            {
+                jpgs.AddRange(ProcessDirectory(subDir));
+            }
             
             return jpgs;
         }
