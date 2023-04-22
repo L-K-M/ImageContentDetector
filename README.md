@@ -17,6 +17,9 @@ After retrieving the key, edit App.config to set the key and the endpoint (which
 
 ## Usage
 
+Example:  
+.\ImageContentDetector.exe -p "C:\Users\yourname\Pictures"
+
   -p, --path        Required. Path to a directory to be traversed. All JPGs in that directory (and its child directories) will be analyzed
 
   -t, --timeout     Time in milliseconds to wait between making API calls to Microsoft's Computer Vision API. Default is 18000
