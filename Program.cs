@@ -126,7 +126,7 @@ namespace ImageContentDetector
                     else
                     {
                         Console.WriteLine($"Error: {response.StatusCode}");
-                        Console.WriteLine($"Content: {response.ReasonPhrase}");
+                        Console.WriteLine($"Reason: {response.ReasonPhrase}");
 
                         var ms = new MemoryStream();
                         await response.Content.CopyToAsync(ms);
@@ -134,11 +134,17 @@ namespace ImageContentDetector
 
                         var sr = new StreamReader(ms);
                         string responseContent = sr.ReadToEnd();
-
                         Console.WriteLine($"Content: {responseContent}");
+
+                        if (response.ReasonPhrase == "Quota Exceeded")
+                        {
+                            Console.WriteLine("Since your quota is exceeded, subsequent calls will likely fail, and I will stop attempting more calls.");
+                            Environment.Exit(0);
+                        }
+
                     }
 
-                    if(File.Exists(tempFilePath)) File.Delete(tempFilePath);
+                    if (File.Exists(tempFilePath)) File.Delete(tempFilePath);
 
                 }
                 catch (Exception ex)
