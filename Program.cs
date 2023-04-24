@@ -113,7 +113,7 @@ namespace ImageContentDetector
                     if (response.IsSuccessStatusCode)
                     {
                         var responseBody = await response.Content.ReadAsStringAsync();
-                        Console.WriteLine(responseBody);
+                        //Console.WriteLine(responseBody);
                         JsonElement jsonObject = JsonSerializer.Deserialize<JsonElement>(responseBody);
 
                         string description = GetDescription(jsonObject);
