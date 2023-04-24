@@ -13,6 +13,8 @@ using System.Linq;
 using static System.Net.Mime.MediaTypeNames;
 using System.Drawing.Imaging;
 using XmpCore.Impl.XPath;
+using System.Drawing;
+using System.Diagnostics.Tracing;
 
 // based on example code from
 // https://www.codeguru.com/azure/analyzing-image-content-programmatically-using-the-microsoft-cognitive-vision-api/#Item1
@@ -52,7 +54,7 @@ namespace ImageContentDetector
         private static bool Force = false;
         private static bool Skip = false;
 
-        const int MaxFileSize = 2000000; // <3 MB
+        const int MaxFileSize = 2000000; // I believe the API limit is around 3MB; todo: make this configurable?
 
         static async Task Main(string[] args)
         {
@@ -111,6 +113,7 @@ namespace ImageContentDetector
                     if (response.IsSuccessStatusCode)
                     {
                         var responseBody = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine(responseBody);
                         JsonElement jsonObject = JsonSerializer.Deserialize<JsonElement>(responseBody);
 
                         string description = GetDescription(jsonObject);
@@ -218,20 +221,132 @@ namespace ImageContentDetector
         private static List<String> GetKeywords(JsonElement jsonObject)
         {
             List<String> keywords = new List<String>();
+            try
+            {
 
-            JsonElement categories = jsonObject.GetProperty("categories");
-            foreach (JsonElement category in categories.EnumerateArray())
-            {
-                string categoryName = category.GetProperty("name").GetString();
-                if (!keywords.Contains(categoryName)) keywords.Add(categoryName);
+                JsonElement categories = jsonObject.GetProperty("categories");
+                foreach (JsonElement category in categories.EnumerateArray())
+                {
+                    string categoryName = category.GetProperty("name").GetString();
+                    AddKeyword(keywords, categoryName);
+                    if (categoryName == "people")
+                    {
+                        JsonElement detail = category.GetProperty("detail");
+                        /*
+                        JsonElement celebrities = detail.GetProperty("celebrities");
+                        if (celebrities.GetProperty("propertyName").ValueKind != JsonValueKind.Undefined)
+                        {
+                            foreach (JsonElement celebrity in celebrities.EnumerateArray())
+                            {
+                                string name = celebrity.GetProperty("name").GetString();
+                                AddKeyword(keywords, name);
+                            }
+                        }
+                        */
+                        JsonElement landmarks = detail.GetProperty("landmarks");
+                        if (landmarks.GetProperty("propertyName").ValueKind != JsonValueKind.Undefined)
+                        {
+                            foreach (JsonElement landmark in landmarks.EnumerateArray())
+                            {
+                                string name = landmark.GetProperty("name").GetString();
+                                AddKeyword(keywords, name);
+                            }
+
+                        }
+                    }
+                }
+
+                JsonElement faces = jsonObject.GetProperty("faces");
+                foreach (JsonElement face in faces.EnumerateArray())
+                {
+                    if (face.TryGetProperty("age", out JsonElement propertyValue))
+                    {
+                        AddKeyword(keywords, propertyValue.ToString());
+                    }
+                    if (face.TryGetProperty("gender", out propertyValue))
+                    {
+                        AddKeyword(keywords, propertyValue.ToString());
+                    }
+                }
+
+                JsonElement colors = jsonObject.GetProperty("color");
+                string dominantColorForeground = colors.GetProperty("dominantColorForeground").GetString();
+                string dominantColorBackground = colors.GetProperty("dominantColorBackground").GetString();
+                string accentColor = colors.GetProperty("accentColor").GetString();
+                bool isBWImg = colors.GetProperty("isBWImg").GetBoolean();
+                string imgType = isBWImg ? "Monochrome" : "ColorImage";
+                AddKeyword(keywords, dominantColorForeground);
+                AddKeyword(keywords, dominantColorBackground);
+                AddKeyword(keywords, accentColor);
+                AddKeyword(keywords, imgType);
+
+                JsonElement dominantColors = colors.GetProperty("dominantColors");
+                foreach (JsonElement dominantColor in dominantColors.EnumerateArray())
+                {
+                    string c = dominantColor.GetString();
+                    AddKeyword(keywords, c);
+                }
+
+                JsonElement imageType = jsonObject.GetProperty("imageType");
+                int clipArtType = imageType.GetProperty("clipArtType").GetInt16();
+                if (clipArtType > 0) AddKeyword(keywords, "Clipart");
+                int lineDrawingType = imageType.GetProperty("lineDrawingType").GetInt16();
+                if (lineDrawingType > 0) AddKeyword(keywords, "Linedrawing");
+
+                JsonElement objects = jsonObject.GetProperty("objects");
+                foreach (JsonElement obj in objects.EnumerateArray())
+                {
+                    string objName = obj.GetProperty("object").GetString();
+                    AddKeyword(keywords, objName);
+
+                    JsonElement parent = obj;
+                    bool cont = true;
+                    while(cont) {
+                        if (parent.TryGetProperty("parent", out JsonElement propertyValue))
+                        {
+                            objName = propertyValue.GetProperty("object").GetString();
+                            AddKeyword(keywords, objName);
+                            parent = propertyValue;
+                        }
+                        else
+                        {
+                            cont = false;
+                        }
+
+                    }
+                }
+
+                JsonElement tags = jsonObject.GetProperty("description").GetProperty("tags");
+                foreach (JsonElement tag in tags.EnumerateArray())
+                {
+                    string tagName = tag.GetString();
+                    AddKeyword(keywords, tagName);
+                }
+
+                tags = jsonObject.GetProperty("tags");
+                foreach (JsonElement tag in tags.EnumerateArray())
+                {
+                    string tagName = tag.GetProperty("name").GetString();
+                    AddKeyword(keywords, tagName);
+                }
+
+                JsonElement brands = jsonObject.GetProperty("brands");
+                foreach (JsonElement brand in brands.EnumerateArray())
+                {
+                    string tagName = brand.GetProperty("name").GetString();
+                    AddKeyword(keywords, tagName);
+                }
             }
-            JsonElement tags = jsonObject.GetProperty("description").GetProperty("tags");
-            foreach (JsonElement tag in tags.EnumerateArray())
+            catch (Exception ex)
             {
-                string tagName = tag.GetString();
-                if (!keywords.Contains(tagName)) keywords.Add(tagName);
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
             }
             return keywords;
+        }
+        private static void AddKeyword(List<String> keywords, string keyword)
+        {
+            if (!keywords.Contains(keyword.ToLower())) keywords.Add(keyword.ToLower());
         }
 
         private static bool HasDescription(string imgPath)
