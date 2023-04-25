@@ -22,7 +22,7 @@ Example:
 
   -p, --path        Required. Path to a directory to be traversed. All JPGs in that directory (and its child directories) will be analyzed
 
-  -t, --timeout     Time in milliseconds to wait between making API calls to Microsoft's Computer Vision API. Default is 18000
+  -t, --timeout     Time in milliseconds to wait between making API calls to Microsoft's Computer Vision API. Default is 3100 to ensure the free rate limit of one request every three seconds isn't violated
 
   -e, --endpoint    Endpoint to be called to make request (e.g. https://switzerlandwest.api.cognitive.microsoft.com/vision/v1.0/analyze). This can also be defined in App.config
 
