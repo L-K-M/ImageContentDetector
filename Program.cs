@@ -81,7 +81,7 @@ namespace ImageContentDetector
             foreach (string imgPath in jpgs)
             {
                 counter++;
-                WriteFileInfoToConsole(counter, imgPath);
+                WriteFileInfoToConsole(counter, imgPath, jpgs.Count());
 
                 if (Program.Skip && HasDescription(imgPath))
                 {
@@ -202,9 +202,11 @@ namespace ImageContentDetector
         }
 
 
-        private static void WriteFileInfoToConsole(int counter, string imgPath)
+        private static void WriteFileInfoToConsole(int counter, string imgPath, int allImageCounter)
         {
-            Console.WriteLine("---- Image " + counter + " ----");
+            Console.WriteLine();
+            Console.WriteLine("---- Image " + counter + " out of " + allImageCounter + " ----");
+            Console.WriteLine("Progress " + Math.Floor(100d*(double)counter/(double)allImageCounter) + "%");
             Console.WriteLine(imgPath);
         }
 
